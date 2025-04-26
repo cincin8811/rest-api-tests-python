@@ -1,5 +1,6 @@
 name: Python Tests
 run-name: Rest API Python Tests - Marcin P
+
 on:
   schedule:
     - cron: "*/2 * * * *"
@@ -31,11 +32,13 @@ jobs:
           pip install -r requirements.txt
           export PYTHONPATH=${PYTHONPATH}:${{ github.workspace }}
           pytest -s tests/part_01/test_users.py --junitxml=results.xml --html=report.html
+
       - name: Create Test Summary
         uses: test-summary/action@dist
         if: success() || failure()
         with:
           paths: results.xml
+
       - name: Upload pytest Test Results
         uses: actions/upload-artifact@v4
         if: success() || failure()
@@ -45,6 +48,7 @@ jobs:
             results.xml
             report.html
             assets
+
       - name: Notify Slack - Build Status
         if: always()
         uses: rtCamp/action-slack-notify@v2
@@ -56,3 +60,42 @@ jobs:
             on branch *${{ github.ref_name }}* by *${{ github.actor }}*.
             Details: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View on GitHub>
           SLACK_TITLE: "Build Status: ${{ job.status }}"
+
+      - name: Send success email
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "✅ Build Success - ${{ github.repository }}"
+          html_body: >
+            <!DOCTYPE html><html><body><h2>✅ Build Succeeded!</h2>
+            <p>Repository: <b>${{ github.repository }}</b></p>
+            <p>Commit: <b>${{ github.sha }}</b></p>
+            <p>Branch: <b>${{ github.ref_name }}</b></p>
+            <p>Check the details on <a href="${{ github.server_url }}/actions">GitHub Actions</a>.</p>
+            </body></html>
+          to: ${{ secrets.RECIPIENT_EMAIL }}
+          from: ${{ secrets.SMTP_USERNAME }}
+
+      - name: Send Build Status Email
+        uses: dawidd6/action-send-mail@v3
+        if: always()
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "${{ job.status == 'success' && '✅ Build Succeeded' || '❌ Build Failed' }} - ${{ github.repository }}"
+          html_body: >
+            <!DOCTYPE html><html><body>
+            <h2>${{ job.status == 'success' && '✅ Build Succeeded' || '❌ Build Failed' }}</h2>
+            <p>Repository: <b>${{ github.repository }}</b></p>
+            <p>Commit: <b>${{ github.sha }}</b></p>
+            <p>Branch: <b>${{ github.ref_name }}</b></p>
+            <p>Check the details on <a href="${{ github.server_url }}/actions">GitHub Actions</a>.</p>
+            </body></html>
+          to: ${{ secrets.RECIPIENT_EMAIL }}
+          from: ${{ secrets.SMTP_USERNAME }}
